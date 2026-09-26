@@ -1,0 +1,67 @@
+const { appState, createDefaultAdmin } = require('./auth');
+
+const createRequest = ({ company_name, company_email, contact_name, contact_email, service_type, description, country, industry }) => {
+  const request = {
+    id: String(appState.requests ? appState.requests.length + 1 : 1),
+    company_name: company_name || 'Not provided',
+    company_email: company_email || 'Not provided',
+    contact_name,
+    contact_email,
+    service_type,
+    description,
+    country: country || 'Not provided',
+    industry: industry || 'Not provided',
+    status: 'new',
+    createdAt: new Date().toISOString()
+  };
+
+  if (!appState.requests) appState.requests = [];
+  appState.requests.unshift(request);
+  return request;
+};
+
+const listRequests = () => (appState.requests || []);
+
+const updateRequestStatus = (id, status) => {
+  const request = (appState.requests || []).find((item) => item.id === String(id));
+  if (!request) return null;
+  request.status = status;
+  return request;
+};
+
+const createInvoiceByRequest = ({ service_request_id, amount, currency = 'USDT' }) => {
+  if (!appState.invoices) appState.invoices = [];
+
+  const invoice = {
+    id: String(appState.invoices.length + 1),
+    service_request_id: String(service_request_id),
+    invoice_number: `SVA-${Date.now()}`,
+    amount: Number(amount).toFixed(2),
+    currency,
+    network: process.env.USDT_NETWORK || 'BSC',
+    wallet_address: process.env.USDT_WALLET || '0x270eafea7449be0ebd4eb931e436dde3972dc1cf',
+    status: 'pending_payment',
+    createdAt: new Date().toISOString()
+  };
+
+  appState.invoices.unshift(invoice);
+  return invoice;
+};
+
+const summarizeAdmin = () => ({
+  totalRequests: (appState.requests || []).length,
+  totalInvoices: (appState.invoices || []).length,
+  totalUsers: (appState.users || []).length,
+  recentRequests: (appState.requests || []).slice(0, 5),
+  recentInvoices: (appState.invoices || []).slice(0, 5)
+});
+
+module.exports = {
+  createRequest,
+  listRequests,
+  updateRequestStatus,
+  createInvoiceByRequest,
+  summarizeAdmin,
+  appState,
+  createDefaultAdmin
+};

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SolveAI Admin</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      body { background: linear-gradient(180deg, #06131f 0%, #081b2a 100%); }
+      .admin-shell { max-width: 1200px; margin: 50px auto; padding: 20px; }
+      .panel { background: rgba(15, 32, 44, 0.95); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 22px; margin-bottom: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+      .row { display: flex; gap: 20px; flex-wrap: wrap; }
+      .badge { display: inline-block; padding: 8px 12px; border-radius: 999px; background: rgba(95, 209, 255, 0.12); color: var(--primary); font-weight: 700; }
+      .stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+      .stat-box { background: rgba(11, 19, 28, 0.9); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 18px; }
+      .stat-box strong { display: block; font-size: 2rem; margin-top: 8px; }
+      .login-form, .request-form { display: grid; gap: 14px; max-width: 480px; }
+      .login-form input, .request-form input, .request-form textarea, .request-form select {
+        width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(8,18,29,0.9); color: white;
+      }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: left; }
+      .status-pill { display: inline-block; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700; }
+      .status-new { background: rgba(95,209,255,0.12); color: var(--primary); }
+      .status-reviewing { background: rgba(255,191,0,0.12); color: #ffcc66; }
+      .status-approved { background: rgba(142,240,199,0.12); color: var(--accent); }
+      .status-paid { background: rgba(142,240,199,0.12); color: var(--accent); }
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <div class="admin-shell">
+      <div id="loginPanel" class="panel">
+        <div class="brand" style="margin-bottom: 18px;">
+          <span class="brand-mark">S</span>
+          <span>SolveAI Admin</span>
+        </div>
+        <form id="loginForm" class="login-form">
+          <label>
+            Email
+            <input type="email" name="email" value="almoizaledrisi@gmail.com" required />
+          </label>
+          <label>
+            Password
+            <input type="password" name="password" value="Admin@123" required />
+          </label>
+          <button type="submit" class="btn btn-primary">Login</button>
+          <div id="loginMessage" class="form-message"></div>
+        </form>
+      </div>
+
+      <div id="dashboardPanel" class="hidden">
+        <div class="panel">
+          <div class="row" style="justify-content: space-between; align-items: center;">
+            <div>
+              <div class="brand">
+                <span class="brand-mark">S</span>
+                <span>SolveAI Dashboard</span>
+              </div>
+            </div>
+            <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="stat-grid">
+            <div class="stat-box">
+              <span class="badge">Requests</span>
+              <strong id="totalRequests">0</strong>
+            </div>
+            <div class="stat-box">
+              <span class="badge">Invoices</span>
+              <strong id="totalInvoices">0</strong>
+            </div>
+            <div class="stat-box">
+              <span class="badge">Users</span>
+              <strong id="totalUsers">0</strong>
+            </div>
+            <div class="stat-box">
+              <span class="badge">Status</span>
+              <strong id="activeStatus">Online</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Submit a service request</h3>
+          <form id="requestForm" class="request-form">
+            <input type="text" name="company_name" placeholder="Company name" />
+            <input type="email" name="company_email" placeholder="Company email" />
+            <input type="text" name="contact_name" placeholder="Contact name" required />
+            <input type="email" name="contact_email" placeholder="Contact email" required />
+            <input type="text" name="service_type" placeholder="Service type" required />
+            <textarea name="description" rows="5" placeholder="Project description" required></textarea>
+            <input type="text" name="country" placeholder="Country" />
+            <input type="text" name="industry" placeholder="Industry" />
+            <button type="submit" class="btn btn-primary">Create Request</button>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h3>Recent requests</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Service</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="requestsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script src="admin-app.js"></script>
+  </body>
+</html>

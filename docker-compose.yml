@@ -1,15 +1,12 @@
 version: '3.8'
 services:
   app:
-    image: node:20
-    working_dir: /app
-    volumes:
-      - .:/app
+    build: .
     ports:
       - "3000:3000"
-    command: npm start
     environment:
       PORT: 3000
       APP_NAME: SolveAI
+      JWT_SECRET: solveai-secret-key-change-me
       USDT_WALLET: 0x270eafea7449be0ebd4eb931e436dde3972dc1cf
       USDT_NETWORK: BSC

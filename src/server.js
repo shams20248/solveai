@@ -1,19 +1,25 @@
 const express = require('express');
+const cors = require('cors');
 const path = require('path');
 const dotenv = require('dotenv');
+
+const { authMiddleware, createDefaultAdmin } = require('./auth');
+const { createRequest, listRequests, updateRequestStatus, createInvoiceByRequest, summarizeAdmin } = require('./store');
+const { loginUser, registerUser } = require('./users');
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const USDT_WALLET = process.env.USDT_WALLET || '0x270eafea7449be0ebd4eb931e436dde3972dc1cf';
-const USDT_NETWORK = process.env.USDT_NETWORK || 'BSC';
 
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
 
-app.get('/api/health', (req, res) => {
+createDefaultAdmin();
+
+app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     app: process.env.APP_NAME || 'SolveAI',
@@ -33,13 +39,8 @@ app.post('/api/contact', (req, res) => {
 
   return res.status(200).json({
     success: true,
-    message: 'Your request has been received and will be reviewed by a human before further action.',
-    data: {
-      name,
-      email,
-      company: company || 'Not provided',
-      message
-    }
+    message: 'Your request has been received and will be reviewed by a human team member before any further action.',
+    data: { name, email, company: company || 'Not provided', message }
   });
 });
 
@@ -54,53 +55,151 @@ app.post('/api/invoice', (req, res) => {
     });
   }
 
+  const wallet = process.env.USDT_WALLET || '0x270eafea7449be0ebd4eb931e436dde3972dc1cf';
+  const network = process.env.USDT_NETWORK || 'BSC';
   const invoiceNumber = `SVA-${Date.now()}`;
 
   return res.status(200).json({
     success: true,
     invoiceNumber,
     service,
-    amount: numericAmount.toFixed(2),
+    amount: Number(numericAmount).toFixed(2),
     company: company || 'Not provided',
     contactName: contactName || 'Client',
     payment: {
       currency: 'USDT',
-      network: USDT_NETWORK,
-      wallet: USDT_WALLET,
-      note: 'Send only USDT on BNB Smart Chain (BEP-20). Verify the network before sending.'
+      network,
+      wallet,
+      note: 'Send only USDT on BNB Smart Chain (BEP-20). Verify network before sending.'
     }
   });
 });
 
 app.get('/api/invoice/:id', (req, res) => {
-  const { id } = req.params;
+  const invoiceId = req.params.id;
+  const wallet = process.env.USDT_WALLET || '0x270eafea7449be0ebd4eb931e436dde3972dc1cf';
+  const network = process.env.USDT_NETWORK || 'BSC';
+
   res.json({
     success: true,
-    invoiceNumber: id,
+    invoiceNumber: invoiceId,
     currency: 'USDT',
-    network: USDT_NETWORK,
-    wallet: USDT_WALLET,
+    network,
+    wallet,
     status: 'pending_payment',
     message: 'Payment confirmation required before service commencement.'
   });
 });
 
-app.get('/legal/terms', (req, res) => {
+app.post('/api/auth/register', (req, res) => {
+  const { name, email, password, confirmPassword } = req.body || {};
+  const result = registerUser({ name, email, password, confirmPassword });
+
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  return res.status(201).json(result);
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body || {};
+  const result = loginUser({ email, password });
+
+  if (!result.success) {
+    return res.status(401).json(result);
+  }
+
+  return res.status(200).json(result);
+});
+
+app.get('/api/requests', authMiddleware, (_req, res) => {
+  res.json({ success: true, data: listRequests() });
+});
+
+app.post('/api/requests', (req, res) => {
+  const { company_name, company_email, contact_name, contact_email, service_type, description, country, industry } = req.body || {};
+
+  if (!contact_name || !contact_email || !service_type || !description) {
+    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+
+  const request = createRequest({
+    company_name,
+    company_email,
+    contact_name,
+    contact_email,
+    service_type,
+    description,
+    country,
+    industry
+  });
+
+  return res.status(201).json({
+    success: true,
+    message: 'Request submitted and will be reviewed by a human team member.',
+    data: request
+  });
+});
+
+app.patch('/api/requests/:id/status', authMiddleware, (req, res) => {
+  const { status } = req.body || {};
+  if (!status) {
+    return res.status(400).json({ success: false, message: 'Status is required.' });
+  }
+  const updated = updateRequestStatus(req.params.id, status);
+  if (!updated) {
+    return res.status(404).json({ success: false, message: 'Request not found.' });
+  }
+  return res.json({ success: true, data: updated });
+});
+
+app.post('/api/invoices', authMiddleware, (req, res) => {
+  const { service_request_id, amount, currency = 'USDT' } = req.body || {};
+
+  if (!service_request_id || !amount) {
+    return res.status(400).json({ success: false, message: 'service_request_id and amount are required.' });
+  }
+
+  const invoice = createInvoiceByRequest({ service_request_id, amount, currency });
+  return res.status(201).json({
+    success: true,
+    data: invoice,
+    payment_details: {
+      network: process.env.USDT_NETWORK || 'BSC',
+      wallet: process.env.USDT_WALLET || '0x270eafea7449be0ebd4eb931e436dde3972dc1cf',
+      currency,
+      note: 'Send only USDT on BNB Smart Chain (BEP-20). Verify the network before sending.'
+    }
+  });
+});
+
+app.get('/api/admin/summary', authMiddleware, (_req, res) => {
+  res.json({ success: true, data: summarizeAdmin() });
+});
+
+app.get('/admin', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public/admin.html'));
+});
+
+app.get('/legal/terms', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/legal/terms.html'));
 });
 
-app.get('/legal/privacy', (req, res) => {
+app.get('/legal/privacy', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/legal/privacy.html'));
 });
 
-app.get('/legal/payment-policy', (req, res) => {
+app.get('/legal/payment-policy', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/legal/payment-policy.html'));
 });
 
-app.get('*', (req, res) => {
+app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
 app.listen(PORT, () => {
   console.log(`SolveAI server running at http://localhost:${PORT}`);
 });
+
+module.exports = app;
