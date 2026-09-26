@@ -1,7 +1,7 @@
 {
   "name": "solveai",
   "version": "2.0.0",
-  "description": "SolveAI professional business services platform with admin dashboard, request management, and USDT payment information",
+  "description": "SolveAI professional business services platform with admin dashboard, request management, email notifications, and USDT payment information",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -12,6 +12,7 @@
     "business",
     "services",
     "dashboard",
+    "email",
     "usdt",
     "bsc"
   ],
@@ -22,7 +23,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "jsonwebtoken": "^9.1.2"
+    "jsonwebtoken": "^9.1.2",
+    "nodemailer": "^6.9.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.3"

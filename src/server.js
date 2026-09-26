@@ -4,8 +4,14 @@ const path = require('path');
 const dotenv = require('dotenv');
 
 const { authMiddleware, createDefaultAdmin } = require('./auth');
-const { createRequest, listRequests, updateRequestStatus, createInvoiceByRequest, summarizeAdmin } = require('./store');
-const { loginUser, registerUser } = require('./users');
+const { createRequest, listRequests, updateRequestStatus, createInvoiceByRequest, summarizeAdmin } = require('./auth');
+const { loginUser, registerUser } = require('./auth');
+const {
+  sendContactNotification,
+  sendClientConfirmation,
+  sendRequestNotification,
+  sendInvoiceEmail,
+} = require('./email');
 
 dotenv.config();
 
@@ -23,41 +29,60 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     app: process.env.APP_NAME || 'SolveAI',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
-app.post('/api/contact', (req, res) => {
+app.post('/api/contact', async (req, res) => {
   const { name, email, company, message } = req.body || {};
 
   if (!name || !email || !message) {
     return res.status(400).json({
       success: false,
-      message: 'Name, email, and message are required.'
+      message: 'Name, email, and message are required.',
     });
   }
+
+  const adminMail = await sendContactNotification({ name, email, company, message });
+  const clientMail = await sendClientConfirmation({ name, email });
 
   return res.status(200).json({
     success: true,
     message: 'Your request has been received and will be reviewed by a human team member before any further action.',
-    data: { name, email, company: company || 'Not provided', message }
+    email: {
+      admin: adminMail,
+      client: clientMail,
+    },
+    data: { name, email, company: company || 'Not provided', message },
   });
 });
 
-app.post('/api/invoice', (req, res) => {
-  const { service, amount, company, contactName } = req.body || {};
+app.post('/api/invoice', async (req, res) => {
+  const { service, amount, company, contactName, email } = req.body || {};
   const numericAmount = Number(amount || 0);
 
   if (!service || !numericAmount || numericAmount <= 0) {
     return res.status(400).json({
       success: false,
-      message: 'Service and valid amount are required.'
+      message: 'Service and valid amount are required.',
     });
   }
 
   const wallet = process.env.USDT_WALLET || '0x270eafea7449be0ebd4eb931e436dde3972dc1cf';
   const network = process.env.USDT_NETWORK || 'BSC';
   const invoiceNumber = `SVA-${Date.now()}`;
+
+  const emailResult = email
+    ? await sendInvoiceEmail({
+        email,
+        name: contactName || 'Client',
+        service,
+        amount: Number(numericAmount).toFixed(2),
+        invoiceNumber,
+        wallet,
+        network,
+      })
+    : { success: false, message: 'No client email provided for invoice email.' };
 
   return res.status(200).json({
     success: true,
@@ -66,12 +91,13 @@ app.post('/api/invoice', (req, res) => {
     amount: Number(numericAmount).toFixed(2),
     company: company || 'Not provided',
     contactName: contactName || 'Client',
+    email: emailResult,
     payment: {
       currency: 'USDT',
       network,
       wallet,
-      note: 'Send only USDT on BNB Smart Chain (BEP-20). Verify network before sending.'
-    }
+      note: 'Send only USDT on BNB Smart Chain (BEP-20). Verify network before sending.',
+    },
   });
 });
 
@@ -87,7 +113,7 @@ app.get('/api/invoice/:id', (req, res) => {
     network,
     wallet,
     status: 'pending_payment',
-    message: 'Payment confirmation required before service commencement.'
+    message: 'Payment confirmation required before service commencement.',
   });
 });
 
@@ -117,7 +143,7 @@ app.get('/api/requests', authMiddleware, (_req, res) => {
   res.json({ success: true, data: listRequests() });
 });
 
-app.post('/api/requests', (req, res) => {
+app.post('/api/requests', async (req, res) => {
   const { company_name, company_email, contact_name, contact_email, service_type, description, country, industry } = req.body || {};
 
   if (!contact_name || !contact_email || !service_type || !description) {
@@ -132,13 +158,21 @@ app.post('/api/requests', (req, res) => {
     service_type,
     description,
     country,
-    industry
+    industry,
+  });
+
+  await sendRequestNotification({
+    contactName: contact_name,
+    contactEmail: contact_email,
+    serviceType: service_type,
+    companyName: company_name,
+    description,
   });
 
   return res.status(201).json({
     success: true,
     message: 'Request submitted and will be reviewed by a human team member.',
-    data: request
+    data: request,
   });
 });
 
@@ -154,14 +188,27 @@ app.patch('/api/requests/:id/status', authMiddleware, (req, res) => {
   return res.json({ success: true, data: updated });
 });
 
-app.post('/api/invoices', authMiddleware, (req, res) => {
-  const { service_request_id, amount, currency = 'USDT' } = req.body || {};
+app.post('/api/invoices', authMiddleware, async (req, res) => {
+  const { service_request_id, amount, currency = 'USDT', email } = req.body || {};
 
   if (!service_request_id || !amount) {
     return res.status(400).json({ success: false, message: 'service_request_id and amount are required.' });
   }
 
   const invoice = createInvoiceByRequest({ service_request_id, amount, currency });
+
+  if (email) {
+    await sendInvoiceEmail({
+      email,
+      name: 'Client',
+      service: `Service #${service_request_id}`,
+      amount: Number(amount).toFixed(2),
+      invoiceNumber: invoice.invoice_number,
+      wallet: invoice.wallet_address,
+      network: invoice.network,
+    });
+  }
+
   return res.status(201).json({
     success: true,
     data: invoice,
@@ -169,8 +216,8 @@ app.post('/api/invoices', authMiddleware, (req, res) => {
       network: process.env.USDT_NETWORK || 'BSC',
       wallet: process.env.USDT_WALLET || '0x270eafea7449be0ebd4eb931e436dde3972dc1cf',
       currency,
-      note: 'Send only USDT on BNB Smart Chain (BEP-20). Verify the network before sending.'
-    }
+      note: 'Send only USDT on BNB Smart Chain (BEP-20). Verify the network before sending.',
+    },
   });
 });
 
