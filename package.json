@@ -1,0 +1,23 @@
+{
+  "name": "solveai",
+  "version": "1.0.0",
+  "description": "SolveAI business platform with consent-based service intake and BNB Smart Chain USDT payment flow",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js"
+  },
+  "keywords": [
+    "solveai",
+    "business",
+    "services",
+    "usdt",
+    "bsc"
+  ],
+  "author": "almoizshams",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
